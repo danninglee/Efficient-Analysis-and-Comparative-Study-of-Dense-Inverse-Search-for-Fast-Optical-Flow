@@ -2,14 +2,15 @@ import numpy as np
 import cv2 as cv
 import time
 import os
+import pandas as pd
 import matplotlib.pyplot as plt
 
-# 绘制光流矢量场
+# 绘制光流矢量场箭头可视化
 def draw_flow(img, flow, step=16):
     h, w = img.shape[:2]
     y, x = np.mgrid[step/2:h:step, step/2:w:step].reshape(2, -1).astype(int)
     fx, fy = flow[y, x].T
-    lines = np.vstack([x, y, x+fx, y+fy]).T.reshape(-1, 2, 2)
+    lines = np.vstack([x, y, x + fx, y + fy]).T.reshape(-1, 2, 2)
     lines = np.int32(lines + 0.5)
     vis = cv.cvtColor(img, cv.COLOR_GRAY2BGR)
     cv.polylines(vis, lines, 0, (0, 255, 0))
@@ -17,12 +18,22 @@ def draw_flow(img, flow, step=16):
         cv.circle(vis, (x1, y1), 1, (0, 255, 0), -1)
     return vis
 
+# 绘制光流矢量场彩色可视化
+def draw_hsv(flow):
+    h, w = flow.shape[:2]
+    fx, fy = flow[..., 0], flow[..., 1]
+    mag, ang = cv.cartToPolar(fx, fy)
+    hsv = np.zeros((h, w, 3), dtype=np.uint8)
+    hsv[..., 0] = ang * 180 / np.pi / 2  # Hue: Motion direction
+    hsv[..., 1] = 255  # Saturation: Full
+    hsv[..., 2] = np.clip(mag * 15, 0, 255).astype(np.uint8)  # Value: Motion magnitude
+    return cv.cvtColor(hsv, cv.COLOR_HSV2BGR)
+
 # 计算端点误差 (EPE)
 def calc_epe(flow_gt, flow_pred):
-    diff = flow_gt - flow_pred  # 计算光流矢量差
-    epe_map = np.sqrt(np.sum(diff**2, axis=2))  # 每像素的欧几里得距离
-    mean_epe = np.mean(epe_map)  # 平均端点误差
-    return mean_epe
+    diff = flow_gt - flow_pred
+    epe_map = np.sqrt(np.sum(diff ** 2, axis=2))
+    return np.mean(epe_map)
 
 # 测试单一光流方法
 def run_optical_flow(method, prev_gray, gray, flow_prev=None, **kwargs):
@@ -31,7 +42,7 @@ def run_optical_flow(method, prev_gray, gray, flow_prev=None, **kwargs):
         dis = kwargs["dis_instance"]
         flow = dis.calc(prev_gray, gray, flow_prev)
     elif method == "Farneback":
-        flow = cv.calcOpticalFlowFarneback(prev_gray, gray, None, 
+        flow = cv.calcOpticalFlowFarneback(prev_gray, gray, None,
                                            pyr_scale=kwargs.get("pyr_scale", 0.5),
                                            levels=kwargs.get("levels", 3),
                                            winsize=kwargs.get("winsize", 15),
@@ -52,36 +63,26 @@ def run_optical_flow(method, prev_gray, gray, flow_prev=None, **kwargs):
         flow = rlof.calc(prev_bgr, curr_bgr, None)
     else:
         raise ValueError(f"Unsupported method: {method}")
-    elapsed_time = (time.time() - start) * 1000  # 计算耗时
+    elapsed_time = (time.time() - start) * 1000
     return flow, elapsed_time
 
-# 可视化实验结果
-def visualize_results(results):
-    methods = list(results.keys())
-    times = [results[m]["time"] for m in methods]
-    epes = [results[m]["epe"] for m in methods]
+def save_results_to_csv(results, video_name):
+    data = []
+    for method, metrics in results.items():
+        data.append({
+            "Method": method,
+            "Average Runtime (ms)": metrics["time"],
+            # "Average EPE": metrics["epe"]
+        })
+    df = pd.DataFrame(data)
+    csv_path = f"data/{video_name}_data.csv"
+    df.to_csv(csv_path, index=False)
+    print(f"Results saved to {csv_path}")
 
-    # 绘制性能对比图
-    plt.figure(figsize=(12, 5))
-    plt.subplot(1, 2, 1)
-    plt.bar(methods, times, color='skyblue')
-    plt.title("Average Processing Time (ms)")
-    plt.ylabel("Time (ms)")
-    plt.xlabel("Method")
-
-    plt.subplot(1, 2, 2)
-    plt.bar(methods, epes, color='lightgreen')
-    plt.title("Average EPE (Endpoint Error)")
-    plt.ylabel("EPE")
-    plt.xlabel("Method")
-
-    plt.tight_layout()
-    plt.show()
-
-# 主实验代码
 def main():
     video_path = "test_random.mp4"  # 视频文件路径
-    output_dir = "output_videos_random"  # 输出文件夹路径
+    video_name = os.path.splitext(os.path.basename(video_path))[0]
+    output_dir = f"output/{video_name}_output"  # 输出文件夹路径
     os.makedirs(output_dir, exist_ok=True)
 
     cap = cv.VideoCapture(video_path)
@@ -106,17 +107,20 @@ def main():
 
     # 初始化结果存储
     results = {method: {"time": [], "epe": []} for method in methods}
-    flow_gt = np.zeros((prev_gray.shape[0], prev_gray.shape[1], 2), dtype=np.float32)  # 伪光流 Ground Truth
+    # flow_gt = np.zeros((prev_gray.shape[0], prev_gray.shape[1], 2), dtype=np.float32)
 
-    writers = {}
-    for method in methods:
-        fourcc = cv.VideoWriter_fourcc(*'mp4v')
-        fps = cap.get(cv.CAP_PROP_FPS)
-        width = int(cap.get(cv.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))
-        writers[method] = cv.VideoWriter(
-            os.path.join(output_dir, f"{method}_output.mp4"), fourcc, fps, (width, height)
+    writers = {method: {
+        "arrows": cv.VideoWriter(
+            os.path.join(output_dir, f"{method}_arrows.mp4"),
+            cv.VideoWriter_fourcc(*'mp4v'), cap.get(cv.CAP_PROP_FPS),
+            (int(cap.get(cv.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv.CAP_PROP_FRAME_HEIGHT)))
+        ),
+        "color": cv.VideoWriter(
+            os.path.join(output_dir, f"{method}_color.mp4"),
+            cv.VideoWriter_fourcc(*'mp4v'), cap.get(cv.CAP_PROP_FPS),
+            (int(cap.get(cv.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv.CAP_PROP_FRAME_HEIGHT)))
         )
+    } for method in methods}
 
     while True:
         ret, frame = cap.read()
@@ -126,26 +130,27 @@ def main():
 
         for method in methods:
             flow, elapsed_time = run_optical_flow(method, prev_gray, gray, **flow_instances[method])
-            vis = draw_flow(gray, flow)
-            # 保存可视化结果
-            writers[method].write(vis)
+            arrows_vis = draw_flow(gray, flow)
+            color_vis = draw_hsv(flow)
+            
+            writers[method]["arrows"].write(arrows_vis)
+            writers[method]["color"].write(color_vis)
 
-            # 记录时间和 EPE
             results[method]["time"].append(elapsed_time)
-            results[method]["epe"].append(calc_epe(flow_gt, flow))
+            # results[method]["epe"].append(calc_epe(flow_gt, flow))
 
         prev_gray = gray
 
     cap.release()
-    for writer in writers.values():
-        writer.release()
+    for writer_set in writers.values():
+        writer_set["arrows"].release()
+        writer_set["color"].release()
 
-    # 计算平均值并可视化结果
     for method in results:
         results[method]["time"] = np.mean(results[method]["time"])
-        results[method]["epe"] = np.mean(results[method]["epe"])
+        # results[method]["epe"] = np.mean(results[method]["epe"])
 
-    visualize_results(results)
+    save_results_to_csv(results, video_name)
     print(f"All videos saved in: {output_dir}")
 
 if __name__ == "__main__":

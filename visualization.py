@@ -5,10 +5,10 @@ import matplotlib.pyplot as plt
 
 def get_middle_frame(cap):
     """Get the frame closest to the middle of the video."""
-    total_frames = int(cap.get(cv.CAP_PROP_FRAME_COUNT))  # 获取视频总帧数
-    middle_frame_index = total_frames // 2  # 中间帧的索引
+    total_frames = int(cap.get(cv.CAP_PROP_FRAME_COUNT))  # Get the total number of video frames
+    middle_frame_index = total_frames // 2  # Index of the intermediate frame
     
-    # 设置视频捕获到中间帧
+    # Set the video capture to the middle frame
     cap.set(cv.CAP_PROP_POS_FRAMES, middle_frame_index)
     
     ret, frame = cap.read()

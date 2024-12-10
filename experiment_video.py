@@ -5,7 +5,7 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# 绘制光流矢量场箭头可视化
+# Draw optical flow vector field arrow visualization
 def draw_flow(img, flow, step=16):
     h, w = img.shape[:2]
     y, x = np.mgrid[step/2:h:step, step/2:w:step].reshape(2, -1).astype(int)
@@ -18,7 +18,7 @@ def draw_flow(img, flow, step=16):
         cv.circle(vis, (x1, y1), 1, (0, 255, 0), -1)
     return vis
 
-# 绘制光流矢量场彩色可视化
+# Draw color visualization of the optical flow vector field
 def draw_hsv(flow):
     h, w = flow.shape[:2]
     fx, fy = flow[..., 0], flow[..., 1]
@@ -29,13 +29,13 @@ def draw_hsv(flow):
     hsv[..., 2] = np.clip(mag * 15, 0, 255).astype(np.uint8)  # Value: Motion magnitude
     return cv.cvtColor(hsv, cv.COLOR_HSV2BGR)
 
-# 计算端点误差 (EPE)
+# Calculate endpoint error (EPE)
 def calc_epe(flow_gt, flow_pred):
     diff = flow_gt - flow_pred
     epe_map = np.sqrt(np.sum(diff ** 2, axis=2))
     return np.mean(epe_map)
 
-# 测试单一光流方法
+# Test single optical flow method
 def run_optical_flow(method, prev_gray, gray, flow_prev=None, **kwargs):
     start = time.time()
     if method == "DIS":
@@ -80,16 +80,16 @@ def save_results_to_csv(results, video_name):
     print(f"Results saved to {csv_path}")
 
 def main():
-    video_path = "test_random.mp4"  # 视频文件路径
+    video_path = "test_random.mp4"  # Video file path
     video_name = os.path.splitext(os.path.basename(video_path))[0]
-    output_dir = f"output/{video_name}_output"  # 输出文件夹路径
+    output_dir = f"output/{video_name}_output"  # Output folder path
     os.makedirs(output_dir, exist_ok=True)
 
     cap = cv.VideoCapture(video_path)
     ret, prev_frame = cap.read()
     prev_gray = cv.cvtColor(prev_frame, cv.COLOR_BGR2GRAY)
 
-    # 初始化光流方法实例
+    # Initialize the optical flow method instance
     dis_instance = cv.DISOpticalFlow.create(cv.DISOPTICAL_FLOW_PRESET_MEDIUM)
     dis_instance.setUseSpatialPropagation(False)
     tvl1_instance = cv.optflow.createOptFlow_DualTVL1()
@@ -105,7 +105,7 @@ def main():
         "DenseRLOF": {"rlof_instance": rlof_instance}
     }
 
-    # 初始化结果存储
+    # Initialize result storage
     results = {method: {"time": [], "epe": []} for method in methods}
     # flow_gt = np.zeros((prev_gray.shape[0], prev_gray.shape[1], 2), dtype=np.float32)
 

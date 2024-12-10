@@ -1,1 +1,3 @@
 # Efficient-Analysis-and-Comparative-Study-of-Dense-Inverse-Search-for-Fast-Optical-Flow
+
+In this project, we focus on the theoretical analysis and experimental comparison of the DIS method for fast optical flow estimation. By studying its underlying principles and performance characteristics, we aim to evaluate the advantages and limitations of DIS in both theoretical and practical contexts. We will conduct a series of experiments to benchmark DIS against alternative optical flow estimation methods, analyzing its accuracy, computational efficiency, and robustness under various conditions. Our primary goal is to provide a comprehensive understanding of its applicability in real-world scenarios.

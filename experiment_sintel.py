@@ -8,6 +8,31 @@ from PIL import Image
 import flowiz as fz
 
 
+def draw_flow(img, flow, step=16):
+    h, w = img.shape[:2]
+    y, x = np.mgrid[step/2:h:step, step/2:w:step].reshape(2, -1).astype(int)
+    fx, fy = flow[y, x].T
+    lines = np.vstack([x, y, x + fx, y + fy]).T.reshape(-1, 2, 2)
+    lines = np.int32(lines + 0.5)
+    vis = cv.cvtColor(img, cv.COLOR_GRAY2BGR)
+    cv.polylines(vis, lines, 0, (0, 255, 0))
+    for (x1, y1), (x2, y2) in lines:
+        cv.circle(vis, (x1, y1), 1, (0, 255, 0), -1)
+    return vis
+
+
+def draw_hsv(flow):
+    h, w = flow.shape[:2]
+    fx, fy = flow[..., 0], flow[..., 1]
+    mag, ang = cv.cartToPolar(fx, fy)
+    hsv = np.zeros((h, w, 3), dtype=np.uint8)
+    hsv[..., 0] = ang * 180 / np.pi / 2  # Hue: Motion direction
+    hsv[..., 1] = 255  # Saturation: Full
+    # Value: Motion magnitude
+    hsv[..., 2] = np.clip(mag * 15, 0, 255).astype(np.uint8)
+    return cv.cvtColor(hsv, cv.COLOR_HSV2BGR)
+
+
 def calc_epe(flow_gt, flow_pred):
     """
     Calculates the end point error
@@ -176,6 +201,7 @@ def main() -> None:
     results = {method: {"epe": []} for method in methods}
 
     for i in range(1, len(img_flow)):
+        print(f"Frame {i}")
         frame_im1, _ = img_flow.get_img_flow_cv(
             i - 1)
         frame_i, _ = img_flow.get_img_flow_cv(
@@ -188,13 +214,16 @@ def main() -> None:
         method_uv = dis_instance.calc(frame_im1, frame_i, None)
 
         for method in methods:
+            print(f"\tDoing method {method}")
             flow = run_optical_flow(
                 method, frame_im1, frame_i, **flow_instances[method])
 
             epe = calc_epe(ground_truth_uv, flow)
             results[method]["epe"].append(epe)
 
-    for method, obj in results:
+    print("-" * 50 + "DONE" + "-"*50)
+
+    for method, obj in results.items():
         epes = obj["epe"]
         print(f"{method} : {np.mean(epes)}")
 

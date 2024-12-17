@@ -6,6 +6,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Draw optical flow vector field arrow visualization
+
+
 def draw_flow(img, flow, step=16):
     h, w = img.shape[:2]
     y, x = np.mgrid[step/2:h:step, step/2:w:step].reshape(2, -1).astype(int)
@@ -19,6 +21,8 @@ def draw_flow(img, flow, step=16):
     return vis
 
 # Draw color visualization of the optical flow vector field
+
+
 def draw_hsv(flow):
     h, w = flow.shape[:2]
     fx, fy = flow[..., 0], flow[..., 1]
@@ -26,16 +30,21 @@ def draw_hsv(flow):
     hsv = np.zeros((h, w, 3), dtype=np.uint8)
     hsv[..., 0] = ang * 180 / np.pi / 2  # Hue: Motion direction
     hsv[..., 1] = 255  # Saturation: Full
-    hsv[..., 2] = np.clip(mag * 15, 0, 255).astype(np.uint8)  # Value: Motion magnitude
+    # Value: Motion magnitude
+    hsv[..., 2] = np.clip(mag * 15, 0, 255).astype(np.uint8)
     return cv.cvtColor(hsv, cv.COLOR_HSV2BGR)
 
 # Calculate endpoint error (EPE)
+
+
 def calc_epe(flow_gt, flow_pred):
     diff = flow_gt - flow_pred
     epe_map = np.sqrt(np.sum(diff ** 2, axis=2))
     return np.mean(epe_map)
 
 # Test single optical flow method
+
+
 def run_optical_flow(method, prev_gray, gray, flow_prev=None, **kwargs):
     start = time.time()
     if method == "DIS":
@@ -43,12 +52,15 @@ def run_optical_flow(method, prev_gray, gray, flow_prev=None, **kwargs):
         flow = dis.calc(prev_gray, gray, flow_prev)
     elif method == "Farneback":
         flow = cv.calcOpticalFlowFarneback(prev_gray, gray, None,
-                                           pyr_scale=kwargs.get("pyr_scale", 0.5),
+                                           pyr_scale=kwargs.get(
+                                               "pyr_scale", 0.5),
                                            levels=kwargs.get("levels", 3),
                                            winsize=kwargs.get("winsize", 15),
-                                           iterations=kwargs.get("iterations", 3),
+                                           iterations=kwargs.get(
+                                               "iterations", 3),
                                            poly_n=kwargs.get("poly_n", 5),
-                                           poly_sigma=kwargs.get("poly_sigma", 1.2),
+                                           poly_sigma=kwargs.get(
+                                               "poly_sigma", 1.2),
                                            flags=kwargs.get("flags", 0))
     elif method == "TVL1":
         tvl1 = kwargs["tvl1_instance"]
@@ -66,6 +78,7 @@ def run_optical_flow(method, prev_gray, gray, flow_prev=None, **kwargs):
     elapsed_time = (time.time() - start) * 1000
     return flow, elapsed_time
 
+
 def save_results_to_csv(results, video_name):
     data = []
     for method, metrics in results.items():
@@ -78,6 +91,7 @@ def save_results_to_csv(results, video_name):
     csv_path = f"data/{video_name}_data.csv"
     df.to_csv(csv_path, index=False)
     print(f"Results saved to {csv_path}")
+
 
 def main():
     video_path = "test_random.mp4"  # Video file path
@@ -113,12 +127,14 @@ def main():
         "arrows": cv.VideoWriter(
             os.path.join(output_dir, f"{method}_arrows.mp4"),
             cv.VideoWriter_fourcc(*'mp4v'), cap.get(cv.CAP_PROP_FPS),
-            (int(cap.get(cv.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv.CAP_PROP_FRAME_HEIGHT)))
+            (int(cap.get(cv.CAP_PROP_FRAME_WIDTH)),
+             int(cap.get(cv.CAP_PROP_FRAME_HEIGHT)))
         ),
         "color": cv.VideoWriter(
             os.path.join(output_dir, f"{method}_color.mp4"),
             cv.VideoWriter_fourcc(*'mp4v'), cap.get(cv.CAP_PROP_FPS),
-            (int(cap.get(cv.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv.CAP_PROP_FRAME_HEIGHT)))
+            (int(cap.get(cv.CAP_PROP_FRAME_WIDTH)),
+             int(cap.get(cv.CAP_PROP_FRAME_HEIGHT)))
         )
     } for method in methods}
 
@@ -129,10 +145,11 @@ def main():
         gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
 
         for method in methods:
-            flow, elapsed_time = run_optical_flow(method, prev_gray, gray, **flow_instances[method])
+            flow, elapsed_time = run_optical_flow(
+                method, prev_gray, gray, **flow_instances[method])
             arrows_vis = draw_flow(gray, flow)
             color_vis = draw_hsv(flow)
-            
+
             writers[method]["arrows"].write(arrows_vis)
             writers[method]["color"].write(color_vis)
 
@@ -152,6 +169,7 @@ def main():
 
     save_results_to_csv(results, video_name)
     print(f"All videos saved in: {output_dir}")
+
 
 if __name__ == "__main__":
     main()
